@@ -10,7 +10,7 @@ const app = express();
 const uuid = require('uuid');
 
 
-// Messenger API 參數
+// Messenger API parameters
 if (!config.FB_PAGE_TOKEN) {
     throw new Error('missing FB_PAGE_TOKEN');
 }
@@ -40,20 +40,20 @@ if (!config.SERVER_URL) { //used for ink to static files
 
 app.set('port', (process.env.PORT || 5000))
 
-//facebook request認證
+//verify request came from facebook
 app.use(bodyParser.json({
     verify: verifyRequestSignature
 }));
 
-//存靜態檔案於public directory
+//serve static files in the public directory
 app.use(express.static('public'));
 
-
+// Process application/x-www-form-urlencoded
 app.use(bodyParser.urlencoded({
     extended: false
 }));
 
-
+// Process application/json
 app.use(bodyParser.json());
 
 
@@ -76,12 +76,12 @@ const sessionClient = new dialogflow.SessionsClient(
 
 const sessionIds = new Map();
 
-// route
-app.get(newLocal, function (req, res) {
+// Index route
+app.get('/', function (req, res) {
     res.send('Hello world, I am a chat bot')
 })
 
-// Facebook verification
+// for Facebook verification
 app.get('/webhook/', function (req, res) {
     console.log("request");
     if (req.query['hub.mode'] === 'subscribe' && req.query['hub.verify_token'] === config.FB_VERIFY_TOKEN) {
@@ -92,7 +92,13 @@ app.get('/webhook/', function (req, res) {
     }
 })
 
-
+/*
+ * All callbacks for Messenger are POST-ed. They will be sent to the same
+ * webhook. Be sure to subscribe your app to your page to receive callbacks
+ * for your page. 
+ * https://developers.facebook.com/docs/messenger-platform/product-overview/setup#subscribe_app
+ *
+ */
 app.post('/webhook/', function (req, res) {
     var data = req.body;
     console.log(JSON.stringify(data));
@@ -170,7 +176,7 @@ function receivedMessage(event) {
 
 
     if (messageText) {
-        //send message to DialogFlow
+        //send message to api.ai
         sendToDialogFlow(senderID, messageText);
     } else if (messageAttachments) {
         handleMessageAttachments(messageAttachments, senderID);
@@ -186,7 +192,7 @@ function handleMessageAttachments(messageAttachments, senderID){
 function handleQuickReply(senderID, quickReply, messageId) {
     var quickReplyPayload = quickReply.payload;
     console.log("Quick reply for message %s with payload %s", messageId, quickReplyPayload);
-    //send payload to Dialogflow
+    //send payload to api.ai
     sendToDialogFlow(senderID, quickReplyPayload);
 }
 
@@ -563,7 +569,7 @@ function sendReceiptMessage(recipientId, recipient_name, currency, payment_metho
 }
 
 /*
- * 傳送Quick Reply 
+ * Send a message with Quick Reply buttons.
  *
  */
 function sendQuickReply(recipientId, text, replies, metadata) {
