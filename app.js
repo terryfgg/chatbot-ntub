@@ -10,53 +10,51 @@ const app = express();
 const uuid = require('uuid');
 
 
-// Messenger API parameters
+// Messenger API 
 if (!config.FB_PAGE_TOKEN) {
-    throw new Error('missing FB_PAGE_TOKEN');
+    throw new Error('找不到 FB_PAGE_TOKEN');
 }
 if (!config.FB_VERIFY_TOKEN) {
-    throw new Error('missing FB_VERIFY_TOKEN');
+    throw new Error('找不到 FB_VERIFY_TOKEN');
 }
 if (!config.GOOGLE_PROJECT_ID) {
-    throw new Error('missing GOOGLE_PROJECT_ID');
+    throw new Error('找不到 GOOGLE_PROJECT_ID');
 }
 if (!config.DF_LANGUAGE_CODE) {
-    throw new Error('missing DF_LANGUAGE_CODE');
+    throw new Error('找不到 DF_LANGUAGE_CODE');
 }
 if (!config.GOOGLE_CLIENT_EMAIL) {
-    throw new Error('missing GOOGLE_CLIENT_EMAIL');
+    throw new Error('找不到 GOOGLE_CLIENT_EMAIL');
 }
 if (!config.GOOGLE_PRIVATE_KEY) {
-    throw new Error('missing GOOGLE_PRIVATE_KEY');
+    throw new Error('找不到 GOOGLE_PRIVATE_KEY');
 }
 if (!config.FB_APP_SECRET) {
-    throw new Error('missing FB_APP_SECRET');
+    throw new Error('找不到 FB_APP_SECRET');
 }
-if (!config.SERVER_URL) { //used for ink to static files
-    throw new Error('missing SERVER_URL');
+if (!config.SERVER_URL) { //在Express中提供靜態檔案，圖、影音
+    throw new Error('找不到 SERVER_URL');
 }
 
 
-
+//port設置
 app.set('port', (process.env.PORT || 5000))
 
-//verify request came from facebook
+//確認FB request
 app.use(bodyParser.json({
     verify: verifyRequestSignature
 }));
 
-//serve static files in the public directory
+//保存靜態檔案在public 資料夾內
 app.use(express.static('public'));
 
-// Process application/x-www-form-urlencoded
+// 解析application/x-www-form-urlencoded
 app.use(bodyParser.urlencoded({
     extended: false
 }));
 
-// Process application/json
+// 解析application/json
 app.use(bodyParser.json());
-
-
 
 
 
@@ -81,6 +79,7 @@ app.get('/', function (req, res) {
     res.send('Hello world, I am a chat bot')
 })
 
+
 // for Facebook verification
 app.get('/webhook/', function (req, res) {
     console.log("request");
@@ -93,11 +92,8 @@ app.get('/webhook/', function (req, res) {
 })
 
 /*
- * All callbacks for Messenger are POST-ed. They will be sent to the same
- * webhook. Be sure to subscribe your app to your page to receive callbacks
- * for your page. 
+ * 參考webhook網址
  * https://developers.facebook.com/docs/messenger-platform/product-overview/setup#subscribe_app
- *
  */
 app.post('/webhook/', function (req, res) {
     var data = req.body;
@@ -128,13 +124,13 @@ app.post('/webhook/', function (req, res) {
                 } else if (messagingEvent.account_linking) {
                     receivedAccountLink(messagingEvent);
                 } else {
-                    console.log("Webhook received unknown messagingEvent: ", messagingEvent);
+                    console.log("找不到匹配的 messagingEvent: ", messagingEvent);
                 }
             });
         });
 
-        // Assume all went well.
-        // You must send back a 200, within 20 seconds
+        // 若上面都沒問題
+        // 傳送 200
         res.sendStatus(200);
     }
 });
@@ -176,7 +172,7 @@ function receivedMessage(event) {
 
 
     if (messageText) {
-        //send message to api.ai
+        //傳送訊息給Dialogflow
         sendToDialogFlow(senderID, messageText);
     } else if (messageAttachments) {
         handleMessageAttachments(messageAttachments, senderID);
@@ -192,7 +188,7 @@ function handleMessageAttachments(messageAttachments, senderID){
 function handleQuickReply(senderID, quickReply, messageId) {
     var quickReplyPayload = quickReply.payload;
     console.log("Quick reply for message %s with payload %s", messageId, quickReplyPayload);
-    //send payload to api.ai
+    //將fb payload傳給 Dialogflow
     sendToDialogFlow(senderID, quickReplyPayload);
 }
 
@@ -569,7 +565,7 @@ function sendReceiptMessage(recipientId, recipient_name, currency, payment_metho
 }
 
 /*
- * Send a message with Quick Reply buttons.
+ * 用 Quick Reply 回覆訊息
  *
  */
 function sendQuickReply(recipientId, text, replies, metadata) {
