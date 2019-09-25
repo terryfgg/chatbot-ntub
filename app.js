@@ -226,7 +226,7 @@ function handleDialogFlowAction(sender, action, messages, contexts, parameters) 
                 if (phone_number != '' && user_name != '' && previous_job != '' && years_of_experience != ''
                     && job_vacancy != '') {
 
-                    let emailContent = 'A new job enquiery from ' + user_name + ' for the job: ' + job_vacancy +
+                    let emailContent = '你好 ' + user_name + ' 您剛剛在我們的官方臉書應徵了： ' + job_vacancy +
                         '.<br> Previous job position: ' + previous_job + '.' +
                         '.<br> Years of experience: ' + years_of_experience + '.' +
                         '.<br> Phone number: ' + phone_number + '.';
