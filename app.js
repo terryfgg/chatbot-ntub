@@ -227,9 +227,9 @@ function handleDialogFlowAction(sender, action, messages, contexts, parameters) 
                     && job_vacancy != '') {
 
                     let emailContent = '你好 ' + user_name + ' 您剛剛在我們的官方臉書應徵了： ' + job_vacancy +
-                        '.<br> Previous job position: ' + previous_job + '.' +
-                        '.<br> Years of experience: ' + years_of_experience + '.' +
-                        '.<br> Phone number: ' + phone_number + '.';
+                        '.<br> 您先前的工作為: ' + previous_job + '.' +
+                        '.<br> 你的工作經驗: ' + years_of_experience + '.' +
+                        '.<br> 您的電話號碼: ' + phone_number + '.';
 
                     sendEmail('New job application', emailContent);
 
