@@ -230,6 +230,8 @@ function handleDialogFlowAction(sender, action, messages, contexts, parameters) 
                         '.<br> 您先前的工作為: ' + previous_job + '.' +
                         '.<br> 你的工作經驗: ' + years_of_experience + '.' +
                         '.<br> 您的電話號碼: ' + phone_number + '.';
+                        '.<br> 很高興您使用我們的智慧客服做應徵，我們會盡快與您聯繫';
+                        '.<br> 若還有問題您可撥打我們的客服電話';
 
                     sendEmail('New job application', emailContent);
 
