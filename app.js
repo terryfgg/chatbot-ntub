@@ -782,6 +782,10 @@ function receivedPostback(event) {
     var payload = event.postback.payload;
 
     switch (payload) {
+        case 'JOB_APPLY':
+            //get feedback with new jobs
+			sendToDialogFlow(senderID, 'job openings');
+            break;
         case 'CHAT':
             //user wants to chat
             sendTextMessage(senderID, " 很高興為您服務，還有需要為您解答的問題嗎?");
