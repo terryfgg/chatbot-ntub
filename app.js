@@ -209,6 +209,36 @@ function handleEcho(messageId, appId, metadata) {
 
 function handleDialogFlowAction(sender, action, messages, contexts, parameters) {
     switch (action) {
+        case "faq-delivery":
+
+            handleMessages(messages, sender);
+
+            sendTypingOn(sender);
+
+            //ask what user wants to do next
+            setTimeout(function() {
+                let buttons = [
+                    {
+                        type:"web_url",
+                        url:"https://www.myapple.com/track_order",
+                        title:"Track my order"
+                    },
+                    {
+                        type:"phone_number",
+                        title:"Call us",
+                        payload:"+16505551234",
+                    },
+                    {
+                        type:"postback",
+                        title:"Keep on Chatting",
+                        payload:"CHAT"
+                    }
+                ];
+
+                sendButtonMessage(sender, "What would you like to do next?", buttons);
+            }, 3000)
+
+            break;
         case "detailed-application":
             if (isDefined(contexts[0]) &&
                 (contexts[0].name.includes('job_application') || contexts[0].name.includes('job-application-details_dialog_context'))
@@ -752,9 +782,13 @@ function receivedPostback(event) {
     var payload = event.postback.payload;
 
     switch (payload) {
+        case 'CHAT':
+            //user wants to chat
+            sendTextMessage(senderID, " 很高興為您服務，還有需要為您解答的問題嗎?");
+            break;
         default:
             //unindentified payload
-            sendTextMessage(senderID, "I'm not sure what you want. Can you be more specific?");
+            sendTextMessage(senderID, "很抱歉我不太清楚您說的問題。");
             break;
 
     }
