@@ -8,6 +8,20 @@ const bodyParser = require('body-parser');
 const request = require('request');
 const app = express();
 const uuid = require('uuid');
+const pg = require('pg');
+pg.defaults.ssl = true;
+const broadcast = require('./routes/broadcast.js');
+
+const userService = require('./services/user-service');
+const colors = require('./colors');
+const weatherService = require('./services/weather-service');
+const jobApplicationService = require('./services/job-application-service');
+let dialogflowService = require('./services/dialogflow-service');
+const fbService = require('./services/fb-service');
+
+const passport = require('passport');
+const FacebookStrategy = require('passport-facebook').Strategy;
+const session = require('express-session');
 
 
 // Messenger API 
@@ -47,6 +61,12 @@ if (!config.EMAIL_TO) { //sending email
 if (!config.WEATHER_API_KEY) { //weather api key
     throw new Error('找不到 WEATHER_API_KEY');
 }
+if (!config.PG_CONFIG) { //pg config
+    throw new Error('missing PG_CONFIG');
+}
+if (!config.FB_APP_ID) { //app id
+    throw new Error('missing FB_APP_ID');
+}
 
 //port設置
 app.set('port', (process.env.PORT || 5000))
@@ -67,7 +87,46 @@ app.use(bodyParser.urlencoded({
 // 解析application/json
 app.use(bodyParser.json());
 
+app.use(session(
+    {
+        secret: 'keyboard cat',
+        resave: true,
+        saveUninitilized: true
+    }
+));
 
+
+app.use(passport.initialize());
+app.use(passport.session());
+
+passport.serializeUser(function(profile, cb) {
+    cb(null, profile);
+});
+
+passport.deserializeUser(function(profile, cb) {
+    cb(null, profile);
+});
+
+passport.use(new FacebookStrategy({
+        clientID: config.FB_APP_ID,
+        clientSecret: config.FB_APP_SECRET,
+        callbackURL: config.SERVER_URL + "auth/facebook/callback"
+    },
+    function(accessToken, refreshToken, profile, cb) {
+        process.nextTick(function() {
+            return cb(null, profile);
+        });
+    }
+));
+
+app.get('/auth/facebook', passport.authenticate('facebook',{scope:'public_profile'}));
+
+
+app.get('/auth/facebook/callback',
+    passport.authenticate('facebook', { successRedirect : '/broadcast/broadcast', failureRedirect: '/broadcast' }));
+
+
+app.set('view engine', 'ejs');
 
 
 const credentials = {
@@ -84,12 +143,13 @@ const sessionClient = new dialogflow.SessionsClient(
 
 
 const sessionIds = new Map();
+const usersMap = new Map();
 
 // Index route
 app.get('/', function (req, res) {
     res.send('Hello world, I am a chat bot')
 })
-
+app.use('/broadcast', broadcast);
 
 // for Facebook verification
 app.get('/webhook/', function (req, res) {
@@ -146,7 +206,16 @@ app.post('/webhook/', function (req, res) {
     }
 });
 
-
+function setSessionAndUser(senderID) {
+    if (!sessionIds.has(senderID)) {
+        sessionIds.set(senderID, uuid.v1());
+    }
+    if (!usersMap.has(senderID)) {
+        userService.addUser(function(user){
+            usersMap.set(senderID, user);
+        }, senderID);
+    }
+}
 
 
 
@@ -157,9 +226,8 @@ function receivedMessage(event) {
     var timeOfMessage = event.timestamp;
     var message = event.message;
 
-    if (!sessionIds.has(senderID)) {
-        sessionIds.set(senderID, uuid.v1());
-    }
+    setSessionAndUser(senderID);
+
     //console.log("Received message for user %d and page %d at %d with message:", senderID, recipientID, timeOfMessage);
     //console.log(JSON.stringify(message));
 
@@ -198,9 +266,33 @@ function handleMessageAttachments(messageAttachments, senderID){
 
 function handleQuickReply(senderID, quickReply, messageId) {
     var quickReplyPayload = quickReply.payload;
-    console.log("Quick reply for message %s with payload %s", messageId, quickReplyPayload);
-    //將fb payload傳給 Dialogflow
-    sendToDialogFlow(senderID, quickReplyPayload);
+    switch (quickReplyPayload) {
+        case 'NEWS_PER_WEEK':
+            userService.newsletterSettings(function (updated) {
+                if (updated) {
+                    fbService.sendTextMessage(senderID, "Thank you for subscribing!" +
+                        "If you want to usubscribe just write 'unsubscribe from newsletter'");
+                } else {
+                    fbService.sendTextMessage(senderID, "Newsletter is not available at this moment." +
+                        "Try again later!");
+                }
+            }, 1, senderID);
+            break;
+        case 'NEWS_PER_DAY':
+            userService.newsletterSettings(function (updated) {
+                if (updated) {
+                    fbService.sendTextMessage(senderID, "Thank you for subscribing!" +
+                        "If you want to usubscribe just write 'unsubscribe from newsletter'");
+                } else {
+                    fbService.sendTextMessage(senderID, "Newsletter is not available at this moment." +
+                        "Try again later!");
+                }
+            }, 2, senderID);
+            break;
+        default:
+            dialogflowService.sendTextQueryToDialogFlow(sessionIds, handleDialogFlowResponse, senderID, quickReplyPayload);
+            break;
+    }
 }
 
 //https://developers.facebook.com/docs/messenger-platform/webhook-reference/message-echo
@@ -211,6 +303,30 @@ function handleEcho(messageId, appId, metadata) {
 
 function handleDialogFlowAction(sender, action, messages, contexts, parameters) {
     switch (action) {
+        case "buy.iphone":
+            colors.readUserColor(function(color) {
+                    let reply;
+                    if (color === '') {
+                        reply = 'In what color would you like to have it?';
+                    } else {
+                        reply = `Would you like to order it in your favourite color ${color}?`;
+                    }
+                fbService.sendTextMessage(sender, reply);
+                }, sender
+            )
+            break;
+        case "iphone_colors.fovourite":
+            colors.updateUserColor(parameters.fields['color'].stringValue, sender);
+            let reply = `Oh, I like it, too. I'll remember that.`;
+            fbService.sendTextMessage(sender, reply);
+            break;
+        case "iphone_colors":
+            colors.readAllColors(function (allColors) {
+                let allColorsString = allColors.join(', ');
+                let reply = `IPhone xxx is available in ${allColorsString}. What is your favourite color?`;
+                fbService.sendTextMessage(sender, reply);
+            });
+            break;
         case"get-current-weather":
         if ( parameters.fields.hasOwnProperty('geo-city') && parameters.fields['geo-city'].stringValue!='') {
             request({
@@ -228,10 +344,10 @@ function handleDialogFlowAction(sender, action, messages, contexts, parameters) 
                         sendTextMessage(sender, reply);
                     } else {
                         sendTextMessage(sender,
-                            `No weather forecast available for ${parameters.fields['geo-city'].stringValue}`);
+                            `無法預測 ${parameters.fields['geo-city'].stringValue}的氣溫`);
                     }
                 } else {
-                    sendTextMessage(sender, 'Weather forecast is not available');
+                    sendTextMessage(sender, '無法預測您所在的城市');
                 }
             });
         } else {
@@ -283,9 +399,28 @@ function handleDialogFlowAction(sender, action, messages, contexts, parameters) 
                     && contexts[0].parameters.fields['years-of-experience'] != '') ? contexts[0].parameters.fields['years-of-experience'].stringValue : '';
                 let job_vacancy = (isDefined(contexts[0].parameters.fields['job-vacancy'])
                     && contexts[0].parameters.fields['job-vacancy'] != '') ? contexts[0].parameters.fields['job-vacancy'].stringValue : '';
-                if (phone_number != '' && user_name != '' && previous_job != '' && years_of_experience != ''
-                    && job_vacancy != '') {
-
+                if (phone_number == '' && user_name != '' && previous_job != '' && years_of_experience == '') {
+                    let replies = [
+                            {
+                                "content_type":"text",
+                                "title":"Less than 1 year",
+                                "payload":"Less than 1 year"
+                            },
+                            {
+                                "content_type":"text",
+                                "title":"Less than 10 years",
+                                "payload":"Less than 10 years"
+                            },
+                            {
+                                "content_type":"text",
+                                "title":"More than 10 years",
+                                "payload":"More than 10 years"
+                            }
+                        ];
+                        sendQuickReply(sender, messages[0].text.text[0], replies);
+                    } else if (phone_number != '' && user_name != '' && previous_job != '' && years_of_experience != ''
+                        && job_vacancy != '') {
+                               
                     let emailContent = '你好 ' + user_name + ' 您剛剛在我們的官方臉書應徵了： ' + job_vacancy +
                         '.<br> 您先前的工作為: ' + previous_job + '.' +
                         '.<br> 你的工作經驗: ' + years_of_experience + '.' +
@@ -761,6 +896,48 @@ function sendAccountLinking(recipientId) {
     callSendAPI(messageData);
 }
 
+async function resolveAfterXSeconds(x) {
+    return new Promise(resolve => {
+        setTimeout(() => {
+            resolve(x);
+        }, x * 1000);
+    });
+}
+async function greetUserText(userId) {
+    let user = usersMap.get(userId);
+    if (!user) {
+        await resolveAfterXSeconds(2);
+        user = usersMap.get(userId);
+    }
+    if (user) {
+        sendTextMessage(userId, "Welcome " + user.first_name + '! ' +
+            'I can answer frequently asked questions for you ' +
+            'and I perform job interviews. What can I help you with?');
+    } else {
+        sendTextMessage(userId, 'Welcome! ' +
+            'I can answer frequently asked questions for you ' +
+            'and I perform job interviews. What can I help you with?');
+    }
+
+    function sendFunNewsSubscribe(userId) {
+        let responceText = "I can send you latest fun technology news, " +
+            "you'll be on top of things and you'll get some laughts. How often would you like to receive them?";
+    
+        let replies = [
+            {
+                "content_type": "text",
+                "title": "Once per week",
+                "payload": "NEWS_PER_WEEK"
+            },
+            {
+                "content_type": "text",
+                "title": "Once per day",
+                "payload": "NEWS_PER_DAY"
+            }
+        ];
+    
+        fbService.sendQuickReply(userId, responceText, replies);
+    }
 /*
  * Call the Send API. The message data goes in the body. If successful, we'll
  * get the message id in a response
@@ -812,6 +989,12 @@ function receivedPostback(event) {
     var payload = event.postback.payload;
 
     switch (payload) {
+        case 'FUN_NEWS':
+            sendFunNewsSubscribe(senderID);
+            break;
+        case 'GET_STARTED':
+            greetUserText(senderID);
+            break;
         case 'JOB_APPLY':
             //get feedback with new jobs
 			sendToDialogFlow(senderID, 'job openings');
@@ -831,6 +1014,8 @@ function receivedPostback(event) {
         "at %d", senderID, recipientID, payload, timeOfPostback);
 
 }
+
+
 
 
 /*

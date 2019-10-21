@@ -15,7 +15,11 @@
   "dependencies": {
     "body-parser": "^1.18.3",
     "dialogflow": "^4.0.3",
+    "ejs": "^2.7.1",    
     "express": "^4.16.4",
+    "express-session": "^1.17.0",
+    "passport": "^0.4.0",
+    "passport-facebook": "^3.0.0",
     "pg": "7.12.1",
     "request": "^2.88.0",
     "sendgrid": "^5.2.3",
