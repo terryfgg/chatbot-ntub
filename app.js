@@ -11,6 +11,7 @@ const uuid = require('uuid');
 const pg = require('pg');
 pg.defaults.ssl = true;
 const broadcast = require('./routes/broadcast.js');
+const webviews = require('./routes/webviews');
 
 const userService = require('./services/user-service');
 const colors = require('./colors');
@@ -67,6 +68,13 @@ if (!config.PG_CONFIG) { //pg config
 if (!config.FB_APP_ID) { //app id
     throw new Error('missing FB_APP_ID');
 }
+if (!config.ADMIN_ID) { //admin id for login
+    throw new Error('missing ADMIN_ID');
+}
+if (!config.FB_PAGE_INBOX_ID) { //page inbox id - the receiver app
+    throw new Error('missing FB_PAGE_INBOX_ID');
+}
+
 
 //port設置
 app.set('port', (process.env.PORT || 5000))
@@ -150,6 +158,7 @@ app.get('/', function (req, res) {
     res.send('Hello world, I am a chat bot')
 })
 app.use('/broadcast', broadcast);
+app.use('/webviews', webviews);
 
 // for Facebook verification
 app.get('/webhook/', function (req, res) {
