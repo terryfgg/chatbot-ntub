@@ -98,7 +98,7 @@ module.exports = {
             if (err) {
                 return console.error('Error acquiring client', err.stack);
             }
-            client
+            client//
                 .query(
                     'UPDATE users SET newsletter=$1 WHERE fb_id=$2',
                     [setting, userId],
