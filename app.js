@@ -81,7 +81,7 @@ app.set('port', (process.env.PORT || 5000))
 
 //確認FB request
 app.use(bodyParser.json({
-    verify: verifyRequestSignature
+    verify: fbService.verifyRequestSignature
 }));
 
 //保存靜態檔案在public 資料夾內
@@ -192,17 +192,17 @@ app.post('/webhook/', function (req, res) {
             // Iterate over each messaging event
             pageEntry.messaging.forEach(function (messagingEvent) {
                 if (messagingEvent.optin) {
-                    receivedAuthentication(messagingEvent);
+                    fbService.receivedAuthentication(messagingEvent);
                 } else if (messagingEvent.message) {
                     receivedMessage(messagingEvent);
                 } else if (messagingEvent.delivery) {
-                    receivedDeliveryConfirmation(messagingEvent);
+                    fbService.receivedDeliveryConfirmation(messagingEvent);
                 } else if (messagingEvent.postback) {
                     receivedPostback(messagingEvent);
                 } else if (messagingEvent.read) {
-                    receivedMessageRead(messagingEvent);
+                    fbService.receivedMessageRead(messagingEvent);
                 } else if (messagingEvent.account_linking) {
-                    receivedAccountLink(messagingEvent);
+                    fbService.receivedAccountLink(messagingEvent);
                 } else {
                     console.log("找不到匹配的 messagingEvent: ", messagingEvent);
                 }
@@ -251,7 +251,7 @@ function receivedMessage(event) {
     var quickReply = message.quick_reply;
 
     if (isEcho) {
-        handleEcho(messageId, appId, metadata);
+        fbService.handleEcho(messageId, appId, metadata);
         return;
     } else if (quickReply) {
         handleQuickReply(senderID, quickReply, messageId);
@@ -261,9 +261,9 @@ function receivedMessage(event) {
 
     if (messageText) {
         //傳送訊息給Dialogflow
-        sendToDialogFlow(senderID, messageText);
+        dialogflowService.sendTextQueryToDialogFlow(sessionIds, handleDialogFlowResponse, senderID, messageText);
     } else if (messageAttachments) {
-        handleMessageAttachments(messageAttachments, senderID);
+        fbService.handleMessageAttachments(messageAttachments, senderID);
     }
 }
 
@@ -304,11 +304,6 @@ function handleQuickReply(senderID, quickReply, messageId) {
     }
 }
 
-//https://developers.facebook.com/docs/messenger-platform/webhook-reference/message-echo
-function handleEcho(messageId, appId, metadata) {
-    // Just logging message echoes to console
-    console.log("Received echo for message %s and app %d with metadata %s", messageId, appId, metadata);
-}
 
 function handleDialogFlowAction(sender, action, messages, contexts, parameters) {
     switch (action) {
@@ -337,38 +332,27 @@ function handleDialogFlowAction(sender, action, messages, contexts, parameters) 
             });
             break;
         case"get-current-weather":
-        if ( parameters.fields.hasOwnProperty('geo-city') && parameters.fields['geo-city'].stringValue!='') {
-            request({
-                url: 'http://api.openweathermap.org/data/2.5/weather', //URL to hit
-                qs: {
-                    appid: config.WEATHER_API_KEY,
-                    q: parameters.fields['geo-city'].stringValue
-                }, //Query string data
-            }, function(error, response, body){
-                if( response.statusCode === 200) {
+            if ( parameters.fields['geo-city'].stringValue!='') {
 
-                    let weather = JSON.parse(body);
-                    if (weather.hasOwnProperty("weather")) {
-                        let reply = `${messages[0].text.text} ${weather["weather"][0]["description"]}`;
-                        sendTextMessage(sender, reply);
-                    } else {
-                        sendTextMessage(sender,
-                            `無法預測 ${parameters.fields['geo-city'].stringValue}的氣溫`);
-                    }
+                weatherService(function(weatherResponse){
+                    if (!weatherResponse) {
+                        fbService.sendTextMessage(sender,
+                            `No weather forecast available for ${parameters.fields['geo-city'].stringValue}`);
                 } else {
-                    sendTextMessage(sender, '無法預測您所在的城市');
+                    let reply = `${messages[0].text.text} ${weatherResponse}`;
+                        fbService.sendTextMessage(sender, reply);
                 }
-            });
+            }, parameters.fields['geo-city'].stringValue);
         } else {
-            handleMessages(messages, sender);
+            fbService.sendTextMessage(sender, 'No weather forecast available');
         }
 
         break;
         case "faq-delivery":
 
-            handleMessages(messages, sender);
+            fbService.handleMessages(messages, sender);
 
-            sendTypingOn(sender);
+            fbService.sendTypingOn(sender);
 
             //ask what user wants to do next
             setTimeout(function() {
@@ -390,23 +374,23 @@ function handleDialogFlowAction(sender, action, messages, contexts, parameters) 
                     }
                 ];
 
-                sendButtonMessage(sender, "What would you like to do next?", buttons);
+                fbService.sendButtonMessage(sender, "What would you like to do next?", buttons);
             }, 3000)
 
             break;
         case "detailed-application":
-            if (isDefined(contexts[0]) &&
+            if (fbService.isDefined(contexts[0]) &&
                 (contexts[0].name.includes('job_application') || contexts[0].name.includes('job-application-details_dialog_context'))
                 && contexts[0].parameters) {
-                let phone_number = (isDefined(contexts[0].parameters.fields['phone-number'])
+                let phone_number = (fbService.isDefined(contexts[0].parameters.fields['phone-number'])
                     && contexts[0].parameters.fields['phone-number'] != '') ? contexts[0].parameters.fields['phone-number'].stringValue : '';
-                let user_name = (isDefined(contexts[0].parameters.fields['user-name'])
+                let user_name = (fbService.isDefined(contexts[0].parameters.fields['user-name'])
                     && contexts[0].parameters.fields['user-name'] != '') ? contexts[0].parameters.fields['user-name'].stringValue : '';
-                let previous_job = (isDefined(contexts[0].parameters.fields['previous-job'])
+                let previous_job = (fbService.isDefined(contexts[0].parameters.fields['previous-job'])
                     && contexts[0].parameters.fields['previous-job'] != '') ? contexts[0].parameters.fields['previous-job'].stringValue : '';
-                let years_of_experience = (isDefined(contexts[0].parameters.fields['years-of-experience'])
+                let years_of_experience = (fbService.isDefined(contexts[0].parameters.fields['years-of-experience'])
                     && contexts[0].parameters.fields['years-of-experience'] != '') ? contexts[0].parameters.fields['years-of-experience'].stringValue : '';
-                let job_vacancy = (isDefined(contexts[0].parameters.fields['job-vacancy'])
+                let job_vacancy = (fbService.isDefined(contexts[0].parameters.fields['job-vacancy'])
                     && contexts[0].parameters.fields['job-vacancy'] != '') ? contexts[0].parameters.fields['job-vacancy'].stringValue : '';
                 if (phone_number == '' && user_name != '' && previous_job != '' && years_of_experience == '') {
                     let replies = [
@@ -426,95 +410,22 @@ function handleDialogFlowAction(sender, action, messages, contexts, parameters) 
                                 "payload":"More than 10 years"
                             }
                         ];
-                        sendQuickReply(sender, messages[0].text.text[0], replies);
+                        fbService.sendQuickReply(sender, messages[0].text.text[0], replies);
                     } else if (phone_number != '' && user_name != '' && previous_job != '' && years_of_experience != ''
                         && job_vacancy != '') {
                                
-                    let emailContent = '你好 ' + user_name + ' 您剛剛在我們的官方臉書應徵了： ' + job_vacancy +
-                        '.<br> 您先前的工作為: ' + previous_job + '.' +
-                        '.<br> 你的工作經驗: ' + years_of_experience + '.' +
-                        '.<br> 您的電話號碼: ' + phone_number + '.';
-                        '.<br> 很高興您使用我們的智慧客服做應徵，我們會盡快與您聯繫';
-                        '.<br> 若還有問題您可撥打我們的客服電話';
+                        jobApplicationService(phone_number, user_name, previous_job, years_of_experience, job_vacancy);
 
-                    sendEmail('New job application', emailContent);
-
-                    handleMessages(messages, sender);
+                        fbService.handleMessages(messages, sender);
                 } else {
-                    handleMessages(messages, sender);
+                    fbService.handleMessages(messages, sender);
                 }
             }
             break;
                 default:
                 //unhandled action, just send back the text
-            handleMessages(messages, sender);
+                fbService.handleMessages(messages, sender);
         }
-}
-
-function handleMessage(message, sender) {
-    switch (message.message) {
-        case "text": //text
-            message.text.text.forEach((text) => {
-                if (text !== '') {
-                    sendTextMessage(sender, text);
-                }
-            });
-            break;
-        case "quickReplies": //quick replies
-            let replies = [];
-            message.quickReplies.quickReplies.forEach((text) => {
-                let reply =
-                    {
-                        "content_type": "text",
-                        "title": text,
-                        "payload": text
-                    }
-                replies.push(reply);
-            });
-            sendQuickReply(sender, message.quickReplies.title, replies);
-            break;
-        case "image": //image
-            sendImageMessage(sender, message.image.imageUri);
-            break;
-    }
-}
-
-
-function handleCardMessages(messages, sender) {
-
-    let elements = [];
-    for (var m = 0; m < messages.length; m++) {
-        let message = messages[m];
-        let buttons = [];
-        for (var b = 0; b < message.card.buttons.length; b++) {
-            let isLink = (message.card.buttons[b].postback.substring(0, 4) === 'http');
-            let button;
-            if (isLink) {
-                button = {
-                    "type": "web_url",
-                    "title": message.card.buttons[b].text,
-                    "url": message.card.buttons[b].postback
-                }
-            } else {
-                button = {
-                    "type": "postback",
-                    "title": message.card.buttons[b].text,
-                    "payload": message.card.buttons[b].postback
-                }
-            }
-            buttons.push(button);
-        }
-
-
-        let element = {
-            "title": message.card.title,
-            "image_url":message.card.imageUri,
-            "subtitle": message.card.subtitle,
-            "buttons": buttons
-        };
-        elements.push(element);
-    }
-    sendGenericMessage(sender, elements);
 }
 
 
@@ -524,7 +435,6 @@ function handleMessages(messages, sender) {
     let cardTypes = [];
     let timeout = 0;
     for (var i = 0; i < messages.length; i++) {
-
         if ( previousType == "card" && (messages[i].message != "card" || i == messages.length - 1)) {
             timeout = (i - 1) * timeoutInterval;
             setTimeout(handleCardMessages.bind(null, cardTypes, sender), timeout);
@@ -539,15 +449,14 @@ function handleMessages(messages, sender) {
         } else if ( messages[i].message == "card") {
             cardTypes.push(messages[i]);
         } else  {
-
             timeout = i * timeoutInterval;
             setTimeout(handleMessage.bind(null, messages[i], sender), timeout);
         }
-
         previousType = messages[i].message;
-
     }
 }
+
+
 
 function handleDialogFlowResponse(sender, response) {
     let responseText = response.fulfillmentMessages.fulfillmentText;
@@ -557,353 +466,20 @@ function handleDialogFlowResponse(sender, response) {
     let contexts = response.outputContexts;
     let parameters = response.parameters;
 
-    sendTypingOff(sender);
+    fbService.sendTypingOff(sender);
 
-    if (isDefined(action)) {
+    if (fbService.iisDefined(action)) {
         handleDialogFlowAction(sender, action, messages, contexts, parameters);
-    } else if (isDefined(messages)) {
-        handleMessages(messages, sender);
-    } else if (responseText == '' && !isDefined(action)) {
+    } else if (fbService.isDefined(messages)) {
+        fbService.handleMessages(messages, sender);
+	} else if (responseText == '' && !fbService.isDefined(action)) {
         //dialogflow could not evaluate input.
-        sendTextMessage(sender, "I'm not sure what you want. Can you be more specific?");
-    } else if (isDefined(responseText)) {
-        sendTextMessage(sender, responseText);
+        fbService.sendTextMessage(sender, "I'm not sure what you want. Can you be more specific?");
+	} else if (fbService.isDefined(responseText)) {
+        fbService.sendTextMessage(sender, responseText);
     }
 }
 
-async function sendToDialogFlow(sender, textString, params) {
-
-    sendTypingOn(sender);
-
-    try {
-        const sessionPath = sessionClient.sessionPath(
-            config.GOOGLE_PROJECT_ID,
-            sessionIds.get(sender)
-        );
-
-        const request = {
-            session: sessionPath,
-            queryInput: {
-                text: {
-                    text: textString,
-                    languageCode: config.DF_LANGUAGE_CODE,
-                },
-            },
-            queryParams: {
-                payload: {
-                    data: params
-                }
-            }
-        };
-        const responses = await sessionClient.detectIntent(request);
-
-        const result = responses[0].queryResult;
-        handleDialogFlowResponse(sender, result);
-    } catch (e) {
-        console.log('error');
-        console.log(e);
-    }
-
-}
-
-
-
-
-function sendTextMessage(recipientId, text) {
-    var messageData = {
-        recipient: {
-            id: recipientId
-        },
-        message: {
-            text: text
-        }
-    }
-    callSendAPI(messageData);
-}
-
-/*
- * Send an image using the Send API.
- *
- */
-function sendImageMessage(recipientId, imageUrl) {
-    var messageData = {
-        recipient: {
-            id: recipientId
-        },
-        message: {
-            attachment: {
-                type: "image",
-                payload: {
-                    url: imageUrl
-                }
-            }
-        }
-    };
-
-    callSendAPI(messageData);
-}
-
-/*
- * Send a Gif using the Send API.
- *
- */
-function sendGifMessage(recipientId) {
-    var messageData = {
-        recipient: {
-            id: recipientId
-        },
-        message: {
-            attachment: {
-                type: "image",
-                payload: {
-                    url: config.SERVER_URL + "/assets/instagram_logo.gif"
-                }
-            }
-        }
-    };
-
-    callSendAPI(messageData);
-}
-
-/*
- * Send audio using the Send API.
- *
- */
-function sendAudioMessage(recipientId) {
-    var messageData = {
-        recipient: {
-            id: recipientId
-        },
-        message: {
-            attachment: {
-                type: "audio",
-                payload: {
-                    url: config.SERVER_URL + "/assets/sample.mp3"
-                }
-            }
-        }
-    };
-
-    callSendAPI(messageData);
-}
-
-/*
- * Send a video using the Send API.
- * example videoName: "/assets/allofus480.mov"
- */
-function sendVideoMessage(recipientId, videoName) {
-    var messageData = {
-        recipient: {
-            id: recipientId
-        },
-        message: {
-            attachment: {
-                type: "video",
-                payload: {
-                    url: config.SERVER_URL + videoName
-                }
-            }
-        }
-    };
-
-    callSendAPI(messageData);
-}
-
-/*
- * Send a video using the Send API.
- * example fileName: fileName"/assets/test.txt"
- */
-function sendFileMessage(recipientId, fileName) {
-    var messageData = {
-        recipient: {
-            id: recipientId
-        },
-        message: {
-            attachment: {
-                type: "file",
-                payload: {
-                    url: config.SERVER_URL + fileName
-                }
-            }
-        }
-    };
-
-    callSendAPI(messageData);
-}
-
-
-
-/*
- * Send a button message using the Send API.
- *
- */
-function sendButtonMessage(recipientId, text, buttons) {
-    var messageData = {
-        recipient: {
-            id: recipientId
-        },
-        message: {
-            attachment: {
-                type: "template",
-                payload: {
-                    template_type: "button",
-                    text: text,
-                    buttons: buttons
-                }
-            }
-        }
-    };
-
-    callSendAPI(messageData);
-}
-
-
-function sendGenericMessage(recipientId, elements) {
-    var messageData = {
-        recipient: {
-            id: recipientId
-        },
-        message: {
-            attachment: {
-                type: "template",
-                payload: {
-                    template_type: "generic",
-                    elements: elements
-                }
-            }
-        }
-    };
-
-    callSendAPI(messageData);
-}
-
-
-function sendReceiptMessage(recipientId, recipient_name, currency, payment_method,
-                            timestamp, elements, address, summary, adjustments) {
-    // Generate a random receipt ID as the API requires a unique ID
-    var receiptId = "order" + Math.floor(Math.random() * 1000);
-
-    var messageData = {
-        recipient: {
-            id: recipientId
-        },
-        message: {
-            attachment: {
-                type: "template",
-                payload: {
-                    template_type: "receipt",
-                    recipient_name: recipient_name,
-                    order_number: receiptId,
-                    currency: currency,
-                    payment_method: payment_method,
-                    timestamp: timestamp,
-                    elements: elements,
-                    address: address,
-                    summary: summary,
-                    adjustments: adjustments
-                }
-            }
-        }
-    };
-
-    callSendAPI(messageData);
-}
-
-/*
- * 用 Quick Reply 回覆訊息
- *
- */
-function sendQuickReply(recipientId, text, replies, metadata) {
-    var messageData = {
-        recipient: {
-            id: recipientId
-        },
-        message: {
-            text: text,
-            metadata: isDefined(metadata)?metadata:'',
-            quick_replies: replies
-        }
-    };
-
-    callSendAPI(messageData);
-}
-
-/*
- * Send a read receipt to indicate the message has been read
- *
- */
-function sendReadReceipt(recipientId) {
-
-    var messageData = {
-        recipient: {
-            id: recipientId
-        },
-        sender_action: "mark_seen"
-    };
-
-    callSendAPI(messageData);
-}
-
-/*
- * Turn typing indicator on
- *
- */
-function sendTypingOn(recipientId) {
-
-
-    var messageData = {
-        recipient: {
-            id: recipientId
-        },
-        sender_action: "typing_on"
-    };
-
-    callSendAPI(messageData);
-}
-
-/*
- * Turn typing indicator off
- *
- */
-function sendTypingOff(recipientId) {
-
-
-    var messageData = {
-        recipient: {
-            id: recipientId
-        },
-        sender_action: "typing_off"
-    };
-
-    callSendAPI(messageData);
-}
-
-/*
- * Send a message with the account linking call-to-action
- *
- */
-function sendAccountLinking(recipientId) {
-    var messageData = {
-        recipient: {
-            id: recipientId
-        },
-        message: {
-            attachment: {
-                type: "template",
-                payload: {
-                    template_type: "button",
-                    text: "Welcome. Link your account.",
-                    buttons: [{
-                        type: "account_link",
-                        url: config.SERVER_URL + "/authorize"
-                    }]
-                }
-            }
-        }
-    };
-
-    callSendAPI(messageData);
-}
 
 async function resolveAfterXSeconds(x) {
     return new Promise(resolve => {
@@ -1006,15 +582,15 @@ function receivedPostback(event) {
             break;
         case 'JOB_APPLY':
             //get feedback with new jobs
-			sendToDialogFlow(senderID, 'job openings');
+			dialogflowService.sendEventToDialogFlow(sessionIds, handleDialogFlowResponse, senderID, 'JOB_OPENINGS');
             break;
         case 'CHAT':
             //user wants to chat
-            sendTextMessage(senderID, " 很高興為您服務，還有需要為您解答的問題嗎?");
+            fbService.sendTextMessage(senderID," 很高興為您服務，還有需要為您解答的問題嗎?");
             break;
         default:
             //unindentified payload
-            sendTextMessage(senderID, "很抱歉我不太清楚您說的問題。");
+            fbService.sendTextMessage(senderID, "很抱歉我不太清楚您說的問題。");
             break;
 
     }
@@ -1186,4 +762,4 @@ function isDefined(obj) {
 // Spin up the server
 app.listen(app.get('port'), function () {
     console.log('running on port', app.get('port'))
-})
+}
