@@ -31,7 +31,7 @@ module.exports = {
         pool.end();
     },
 
-
+//蒐集顧客的資訊（顏色)
     readUserColor: function(callback, userId) {
         var pool = new pg.Pool(config.PG_CONFIG);
         pool.connect(function(err, client, done) {
@@ -54,7 +54,7 @@ module.exports = {
         });
         pool.end();
     },
-
+//更新
     updateUserColor: function(color, userId) {
         var pool = new pg.Pool(config.PG_CONFIG);
         pool.connect(function(err, client, done) {
