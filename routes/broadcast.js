@@ -16,12 +16,18 @@ router.get('/no-access', function (req, res) {
 });
 
 router.get('/broadcast', ensureAuthenticated, function (req, res) {
-    res.render('broadcast');
     res.render('broadcast', {user: req.user });
 });
 
 router.post('/broadcast', ensureAuthenticated, function (req, res) {
-    res.render('broadcast-confirm');
+    let message = req.body.message;
+    let newstype = parseInt(req.body.newstype, 10);
+    req.session.newstype = newstype;
+    req.session.message = message;
+    userService.readAllUsers(function(users) {
+        req.session.users = users;
+        res.render('broadcast-confirm', {user: req.user, message: message, users: users, numUsers: users.length, newstype: newstype})
+    }, newstype);
 });
 
 router.get('/broadcast-send', ensureAuthenticated, function (req, res) {
