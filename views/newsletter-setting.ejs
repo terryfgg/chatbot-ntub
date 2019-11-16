@@ -52,9 +52,11 @@
         js.src = "//connect.facebook.com/en_US/messenger.Extensions.js";
         fjs.parentNode.insertBefore(js, fjs);
     }(document, 'script', 'Messenger'));
+
+
     window.extAsyncInit = function() {
         // the Messenger Exstensions JS SDK is done loading
-        MessengerExtensions.getContext('1559972370790187',
+        MessengerExtensions.getContext('2309850615945997',
             function success(thread_context){
                 $('#psid').val(thread_context.psid);
                 $.getJSON('/webviews/settings?psid=' + thread_context.psid, function (data) {
