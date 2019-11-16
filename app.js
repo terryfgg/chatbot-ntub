@@ -63,7 +63,7 @@ if (!config.WEATHER_API_KEY) { //weather api key
     throw new Error('找不到 WEATHER_API_KEY');
 }
 if (!config.PG_CONFIG) { //pg config
-    throw new Error('missing PG_CONFIG');
+    throw new Error('找不到 PG_CONFIG');
 }
 if (!config.FB_APP_ID) { //app id
     throw new Error('missing FB_APP_ID');
