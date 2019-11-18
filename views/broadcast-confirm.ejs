@@ -14,15 +14,15 @@
     <div class="container">
         <div class="row">
             <div class="col-md-4 col-xs-12">
-                <p>Message to be sent:</p>
+                <p>訊息將傳送:</p>
                 <textarea readonly><%= message %></textarea>
             </div>
             <div class="col-md-8 col-xs-12">
                 <% if(newstype===1) { %>
-                <p>Message will be sent as a <strong>weekly</strong>news.</p>
+                <p>訊息會  <strong>每星期傳送</strong>新消息</p>
                 <% } %>
                 <% if(newstype===2) { %>
-                <p>Message will be sent as a <strong>daily</strong>news.</p>
+                <p>訊息會 <strong>每星期傳送</strong>新消息</p>
                 <% } %>
             </div>
         </div>
@@ -32,8 +32,8 @@
                 <a class="btn btn-default" href="/broadcast/broadcast">Cancel</a>
             </div>
             <div class="col-md-8 col-xs-12">
-                <p>Message will be sent to <strong><%= numUsers %></strong> users.</p>
-                <p>List of all users:</p>
+                <p>息已傳送 <strong><%= numUsers %></strong> 使用者</p>
+                <p>列出所有使用者:</p>
                 <ul>
                     <% users.forEach(function(user) { %>
                     <li><%= user.first_name %> <%= user.last_name %></li>
